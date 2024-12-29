@@ -51,39 +51,30 @@ from flask import Flask, request, jsonify, render_template
 import tensorflow as tf
 import numpy as np
 from PIL import Image
+import logging
 
-
-
+# Initialize Flask app and logging
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
 
-# Define the model architecture
-def create_model():
+# Load the pre-trained model
+try:
+    model = tf.keras.models.load_model('mnist_model.h5')
+    logging.info("Loaded pre-trained model successfully")
+except Exception as e:
+    logging.error(f"Error loading pre-trained model: {e}")
+    # Create a basic model as fallback
     model = tf.keras.Sequential([
         tf.keras.layers.Input(shape=(28, 28, 1)),
-        tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
-        tf.keras.layers.MaxPooling2D((2, 2)),
-        tf.keras.layers.Conv2D(64, (3, 3), activation='relu'),
         tf.keras.layers.Flatten(),
-        tf.keras.layers.Dense(64, activation='relu'),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dropout(0.2),
         tf.keras.layers.Dense(10, activation='softmax')
     ])
-    return model
-
-# Create and compile the model
-model = create_model()
-model.compile(optimizer='adam',
-              loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
-
-# Load the weights from your existing model
-try:
-    model.load_weights('mnist_cnn_model.h5')
-except Exception as e:
-    print(f"Error loading weights: {e}")
-    # If loading fails, we'll use the untrained model
-    pass
+    model.compile(optimizer='adam',
+                 loss='sparse_categorical_crossentropy',
+                 metrics=['accuracy'])
+    logging.warning("Created fallback model")
 
 @app.route('/')
 def home():
@@ -91,22 +82,56 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'})
-    
-    file = request.files['file']
-    # Read and preprocess the image
-    img = Image.open(file).convert('L')
-    img = img.resize((28, 28))
-    img_array = np.array(img)
-    img_array = img_array.reshape(1, 28, 28, 1)
-    img_array = img_array / 255.0
-    
-    # Make prediction
-    prediction = model.predict(img_array)
-    predicted_digit = np.argmax(prediction[0])
-    
-    return jsonify({'prediction': int(predicted_digit)}) 
+    try:
+        if 'file' not in request.files:
+            logging.error("No file part in the request")
+            return jsonify({'error': 'No file uploaded', 'success': False}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            logging.error("No file selected")
+            return jsonify({'error': 'No file selected', 'success': False}), 400
 
-if __name__ == "__main__":
-      app.run(debug=True)
+        # Read and preprocess the image
+        img = Image.open(file).convert('L')
+        logging.info(f"Image opened, size: {img.size}")
+        
+        img = img.resize((28, 28))
+        logging.info("Image resized to 28x28")
+        
+        img_array = np.array(img)
+        logging.info(f"Image converted to array, shape: {img_array.shape}")
+        
+        img_array = img_array.reshape(1, 28, 28, 1)
+        img_array = img_array / 255.0
+        logging.info(f"Final input shape: {img_array.shape}")
+        
+        # Make prediction
+        prediction = model.predict(img_array, verbose=0)
+        predicted_digit = np.argmax(prediction[0])
+        confidence = float(prediction[0][predicted_digit])
+        
+        logging.info(f"Prediction made: {predicted_digit} with confidence: {confidence}")
+        
+        return jsonify({
+            'prediction': int(predicted_digit),
+            'confidence': float(confidence),
+            'success': True
+        })
+
+    except Exception as e:
+        logging.error(f"Error during prediction: {str(e)}")
+        return jsonify({
+            'error': str(e),
+            'success': False
+        }), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({
+        'status': 'healthy',
+        'success': True
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)

@@ -1,0 +1,2 @@
+# Force line endings to be LF for start.sh
+*.sh text eol=lf

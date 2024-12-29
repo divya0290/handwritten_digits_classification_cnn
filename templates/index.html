@@ -1,107 +1,69 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Handwritten Digit Classifier</title>
+    <title>Digit Recognition</title>
     <style>
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0056b3; /* Same color as Predict button */
-            margin: 0;
-            padding: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            background: #ffffff;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            width: 90%;
-            max-width: 400px;
-            padding: 30px;
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
             text-align: center;
-        }
-        h1 {
-            font-size: 24px;
-            color: #333333;
-            margin-bottom: 20px;
-        }
-        .upload-form {
-            margin: 20px 0;
-        }
-        .upload-form input[type="file"] {
-            display: block;
-            margin: 10px auto;
-            font-size: 14px;
-        }
-        .submit-btn {
-            background-color: #0056b3;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            padding: 10px 15px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        .submit-btn:hover {
-            background-color: #003f7f;
         }
         .result {
             margin-top: 20px;
-            padding: 15px;
-            background-color: #e7f5ff;
+            padding: 10px;
             border-radius: 5px;
-            color: #003366;
-            font-weight: bold;
-            display: none;
         }
-        footer {
-            margin-top: 20px;
-            font-size: 12px;
-            color: #999999;
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
         }
     </style>
-    <script>
-        async function submitForm(event) {
-            event.preventDefault();
-            const formData = new FormData(event.target);
-            const resultDiv = document.getElementById('result');
-            resultDiv.style.display = 'none';
-
-            try {
-                const response = await fetch('/predict', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    resultDiv.textContent = data.digit !== undefined 
-                        ? `Predicted Digit: ${data.digit}` 
-                        : `Error: ${data.error}`;
-                } else {
-                    resultDiv.textContent = 'Error: Unable to predict the digit.';
-                }
-            } catch (error) {
-                resultDiv.textContent = `Error: ${error.message}`;
-            }
-
-            resultDiv.style.display = 'block';
-        }
-    </script>
 </head>
 <body>
-    <div class="container">
-        <h1>Handwritten Digit Classifier</h1>
-        <form class="upload-form" id="uploadForm" onsubmit="submitForm(event)">
-            <input type="file" name="file" accept="image/*" required>
-            <button type="submit" class="submit-btn">Predict</button>
-        </form>
-        <div id="result" class="result"></div>
-    </div>
+    <h1>Handwritten Digit Recognition</h1>
+    <form id="upload-form">
+        <input type="file" id="file-upload" accept="image/*" required>
+        <button type="submit">Predict</button>
+    </form>
+    <div id="result" class="result"></div>
+
+    <script>
+    document.getElementById('upload-form').onsubmit = function(e) {
+        e.preventDefault();
+        var formData = new FormData();
+        var fileInput = document.getElementById('file-upload');
+        formData.append('file', fileInput.files[0]);
+
+        document.getElementById('result').innerHTML = 'Processing...';
+
+        fetch('/predict', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            const resultDiv = document.getElementById('result');
+            if (data.success) {
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `Predicted Digit: ${data.prediction}<br>Confidence: ${(data.confidence * 100).toFixed(2)}%`;
+            } else {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `Error: ${data.error}`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            const resultDiv = document.getElementById('result');
+            resultDiv.className = 'result error';
+            resultDiv.innerHTML = 'Error processing the image. Please try again.';
+        });
+    };
+    </script>
 </body>
 </html>
